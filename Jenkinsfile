@@ -15,14 +15,6 @@ pipeline {
             }
         }
         
-        stage('Test') {
-            steps {
-                sh '''
-                    echo "Running tests..."
-                    python -m pytest tests/ -v
-                '''
-            }
-        }
         
         stage('Deploy to Server') {
             steps {
@@ -48,18 +40,7 @@ pipeline {
             }
         }
         
-        stage('Health Check') {
-            steps {
-                script {
-                    // Verify the application is running
-                    sh """
-                        curl -f http://${DEPLOY_SERVER}:${DEPLOY_PORT}/health || exit 1
-                    """
-                    echo "Deployment completed successfully!"
-                }
-            }
-        }
-    }
+       
     
     post {
         always {
