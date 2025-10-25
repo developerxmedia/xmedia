@@ -5,7 +5,7 @@ pipeline {
         // Target server where FastAPI will run
         DEPLOY_SERVER = '143.1.1.65'
         DEPLOY_PORT = '8111'
-        APP_DIR = '/opt/fastapi-app'
+        APP_DIR = '/opt/project-management'
     }
     
     stages {
