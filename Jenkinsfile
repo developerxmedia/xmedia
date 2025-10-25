@@ -11,40 +11,56 @@ pipeline {
         stage('Deploy to FastAPI Server') {
             steps {
                 script {
-                    echo "Deploying to ${DEPLOY_SERVER}:${DEPLOY_PORT}"
+                    echo "Deploying to ${DEPLOY_SERVER}"
                     
-                    // Copy files to target server
-                    sh """
-                        scp -o StrictHostKeyChecking=no -r ./* ${DEPLOY_SERVER}:${APP_DIR}/
-                    """
-                    
-                    // Run deployment commands on target server
-                    sshagent(['your-ssh-credentials-id']) {
+                    sshagent(['deploy-to-65']) {
+                        // Create directory on target server
                         sh """
-                            ssh -o StrictHostKeyChecking=no ${DEPLOY_SERVER} '
+                            ssh -o StrictHostKeyChecking=no root@${DEPLOY_SERVER} "
+                                mkdir -p ${APP_DIR}
+                                chmod 755 ${APP_DIR}
+                            "
+                        """
+                        
+                        // Copy files using rsync (more efficient)
+                        sh """
+                            rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+                            --exclude='__pycache__' \
+                            --exclude='venv' \
+                            --exclude='.git' \
+                            --exclude='*.log' \
+                            --exclude='*.pid' \
+                            ./ root@${DEPLOY_SERVER}:${APP_DIR}/
+                        """
+                        
+                        // Deploy application
+                        sh """
+                            ssh -o StrictHostKeyChecking=no root@${DEPLOY_SERVER} "
                                 cd ${APP_DIR}
-                                echo "Installing dependencies..."
+                                echo 'Stopping existing application...'
+                                pkill -f 'uvicorn' || true
+                                sleep 3
+                                echo 'Installing Python dependencies...'
                                 pip3 install -r requirements.txt
-                                echo "Starting application..."
+                                echo 'Starting FastAPI application...'
                                 nohup python3 -m uvicorn main:app --host 0.0.0.0 --port ${DEPLOY_PORT} > app.log 2>&1 &
-                                echo "Application deployed successfully"
-                            '
+                                echo 'Application deployment completed!'
+                            "
                         """
                     }
                 }
             }
         }
-    }
-    
-    post {
-        always {
-            echo "Deployment process completed"
-        }
-        success {
-            echo "✅ Application successfully deployed to ${DEPLOY_SERVER}:${DEPLOY_PORT}"
-        }
-        failure {
-            echo "❌ Deployment failed - check logs above"
+        
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    sleep 5
+                    sh """
+                        curl -s -f http://${DEPLOY_SERVER}:${DEPLOY_PORT}/docs > /dev/null && echo '✅ Deployment successful!'
+                    """
+                }
+            }
         }
     }
 }
